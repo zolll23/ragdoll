@@ -1,0 +1,59 @@
+<idea-plugin>
+    <id>com.coderag.ide.pycharm</id>
+    <name>CodeRAG</name>
+    <version>1.0.0</version>
+    <vendor email="support@coderag.com" url="https://coderag.com">CodeRAG</vendor>
+
+    <description><![CDATA[
+    CodeRAG plugin for PyCharm provides intelligent code analysis and refactoring suggestions.
+    
+    Features:
+    - Natural language code search
+    - Code quality metrics (complexity, coupling, security)
+    - Refactoring suggestions (SOLID violations, code smells)
+    - Inline annotations for code issues
+    - Tool window for detailed analysis
+    ]]></description>
+
+    <change-notes><![CDATA[
+    Initial release:
+    - Code search and analysis
+    - Metrics display
+    - Refactoring suggestions
+    ]]></change-notes>
+
+    <!-- PyCharm compatibility -->
+    <depends>com.intellij.modules.python</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Application service -->
+        <applicationService serviceImplementation="coderag_plugin.CodeRAGPlugin"/>
+        
+        <!-- Tool window -->
+        <toolWindow id="CodeRAG" secondary="true" anchor="right" 
+                    factoryClass="coderag_ui.CodeRAGToolWindowFactory"/>
+    </extensions>
+
+    <actions>
+        <!-- Analyze current method/class -->
+        <action id="CodeRAG.AnalyzeCurrent" 
+                class="coderag_plugin.AnalyzeCurrentAction" 
+                text="Analyze with CodeRAG" 
+                description="Analyze current method or class">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt A"/>
+        </action>
+        
+        <!-- Search code -->
+        <action id="CodeRAG.SearchCode" 
+                class="coderag_plugin.SearchCodeAction" 
+                text="Search Code..." 
+                description="Search code using natural language">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt S"/>
+        </action>
+    </actions>
+</idea-plugin>
+
+
+

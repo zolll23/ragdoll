@@ -1,0 +1,183 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: coderag_postgres
+    environment:
+      POSTGRES_DB: coderag
+      POSTGRES_USER: coderag
+      POSTGRES_PASSWORD: coderag_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coderag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: coderag_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: coderag_qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: coderag_backend
+    depends_on:
+      - postgres
+      - redis
+      - qdrant
+    environment:
+      DATABASE_URL: postgresql://coderag:coderag_pass@postgres:5432/coderag
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:latest}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_PROMPTS_TO_FILE: ${LOG_PROMPTS_TO_FILE:-true}
+      LOG_PROMPTS_FILE_PATH: ${LOG_PROMPTS_FILE_PATH:-logs/prompts.log}
+      LOG_FAILED_ANALYSES_TO_FILE: ${LOG_FAILED_ANALYSES_TO_FILE:-true}
+      LOG_FAILED_ANALYSES_FILE_PATH: ${LOG_FAILED_ANALYSES_FILE_PATH:-logs/failed_analyses.log}
+      GOOSE_API_URL: http://goose:8080
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./mcp_server:/app/mcp_server:ro
+      - ./backend/logs:/app/logs
+      - indexed_projects:/projects
+      - /home/andy/work/bitrix/code:/home/andy/work/bitrix/code:ro
+      - /home/andy/work/coderag:/home/andy/work/coderag:ro
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: coderag_celery_worker
+    depends_on:
+      - postgres
+      - redis
+      - qdrant
+    environment:
+      DATABASE_URL: postgresql://coderag:coderag_pass@postgres:5432/coderag
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:latest}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_PROMPTS_TO_FILE: ${LOG_PROMPTS_TO_FILE:-true}
+      LOG_PROMPTS_FILE_PATH: ${LOG_PROMPTS_FILE_PATH:-logs/prompts.log}
+      LOG_FAILED_ANALYSES_TO_FILE: ${LOG_FAILED_ANALYSES_TO_FILE:-true}
+      LOG_FAILED_ANALYSES_FILE_PATH: ${LOG_FAILED_ANALYSES_FILE_PATH:-logs/failed_analyses.log}
+    volumes:
+      - ./backend:/app
+      - ./backend/logs:/app/logs
+      - indexed_projects:/projects
+      - /home/andy/work/bitrix/code:/home/andy/work/bitrix/code:ro
+      - /home/andy/work/coderag:/home/andy/work/coderag:ro
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=2
+
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: coderag_celery_beat
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgresql://coderag:coderag_pass@postgres:5432/coderag
+      REDIS_URL: redis://redis:6379/0
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+    volumes:
+      - ./backend:/app
+      - /home/andy/work/coderag:/home/andy/work/coderag:ro
+    command: celery -A app.core.celery_app beat --loglevel=info
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: coderag_frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+      REACT_APP_GOOSE_API_URL: http://localhost:8080
+
+  goose:
+    build:
+      context: ./goose
+      dockerfile: Dockerfile
+    container_name: coderag_goose
+    depends_on:
+      - postgres
+      - backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./goose:/app
+      - ./mcp_server:/app/mcp_server:ro
+      - ./backend:/app/backend:ro
+      - ./logs:/app/logs
+      - indexed_projects:/projects:ro
+      - /home/andy/work/bitrix/code:/home/andy/work/bitrix/code:ro
+      - /home/andy/work/coderag:/home/andy/work/coderag:ro
+    environment:
+      DATABASE_URL: postgresql://coderag:coderag_pass@postgres:5432/coderag
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      # Use same LLM configuration as backend
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:latest}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      VLLM_URL: ${VLLM_URL:-http://localhost:8000}
+      # Goose will use LLM_PROVIDER and LLM_MODEL from above
+      PORT: 8080
+      PYTHONPATH: /app/backend:/app
+      LOG_GOOSE_TOOLS_TO_FILE: ${LOG_GOOSE_TOOLS_TO_FILE:-true}
+      LOG_GOOSE_TOOLS_FILE_PATH: ${LOG_GOOSE_TOOLS_FILE_PATH:-/app/logs/goose_tools.log}
+    command: /app/wrapper.sh
+
+volumes:
+  indexed_projects:
+

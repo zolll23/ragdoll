@@ -1,0 +1,83 @@
+<idea-plugin>
+    <id>com.coderag.ide</id>
+    <name>CodeRAG</name>
+    <version>1.0.0</version>
+    <vendor email="support@coderag.com" url="https://coderag.com">CodeRAG</vendor>
+
+    <description><![CDATA[
+    CodeRAG plugin for PhpStorm provides intelligent code analysis and refactoring suggestions.
+    
+    Features:
+    - Natural language code search
+    - Code quality metrics (complexity, coupling, security)
+    - Refactoring suggestions (SOLID violations, code smells)
+    - Inline annotations for code issues
+    - Tool window for detailed analysis
+    ]]></description>
+
+    <change-notes><![CDATA[
+    Initial release:
+    - Code search and analysis
+    - Metrics display
+    - Refactoring suggestions
+    ]]></change-notes>
+
+    <!-- PhpStorm compatibility -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.jetbrains.php</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Application service -->
+        <applicationService serviceImplementation="com.coderag.ide.services.CodeRAGService"/>
+        
+        <!-- Project service -->
+        <projectService serviceImplementation="com.coderag.ide.services.CodeRAGProjectService"/>
+        
+        <!-- Tool window -->
+        <toolWindow id="CodeRAG" secondary="true" anchor="right" 
+                    factoryClass="com.coderag.ide.ui.CodeRAGToolWindowFactory"/>
+        
+        <!-- Inline annotations -->
+        <codeInsight.inlayProvider language="PHP" 
+                                   implementationClass="com.coderag.ide.ui.CodeRAGInlayProvider"/>
+    </extensions>
+
+    <actions>
+        <!-- Analyze current method/class -->
+        <action id="CodeRAG.AnalyzeCurrent" 
+                class="com.coderag.ide.actions.AnalyzeCurrentAction" 
+                text="Analyze with CodeRAG" 
+                description="Analyze current method or class">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt A"/>
+        </action>
+        
+        <!-- Search code -->
+        <action id="CodeRAG.SearchCode" 
+                class="com.coderag.ide.actions.SearchCodeAction" 
+                text="Search Code..." 
+                description="Search code using natural language">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt S"/>
+        </action>
+        
+        <!-- Show refactoring suggestions -->
+        <action id="CodeRAG.ShowRefactoring" 
+                class="com.coderag.ide.actions.ShowRefactoringAction" 
+                text="Show Refactoring Suggestions" 
+                description="Show refactoring suggestions for current code">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        
+        <!-- Settings -->
+        <action id="CodeRAG.Settings" 
+                class="com.coderag.ide.actions.OpenSettingsAction" 
+                text="CodeRAG Settings" 
+                description="Open CodeRAG settings">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>
+
+
+
